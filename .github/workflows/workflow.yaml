@@ -23,7 +23,9 @@ jobs:
             sudo ufw deny 443
             cd /var/www/html
             sudo rm -rf *
-            sudo git clone https://${{ secrets.PAT }}@github.com/noarezaifontys/pipelineman6.git .
+            sudo git clone https://${{ secrets.PAT }}@github.com/noarezaifontys/pipelineman6.git
+            sudo mv /var/www/html/pipelineman6/* /var/www/html/
+            sudo rm -rf ./pipelineman6/
             sudo ufw allow 80
             sudo ufw allow 443
       - name: Test the testing server
@@ -45,7 +47,9 @@ jobs:
             sudo ufw deny 443
             cd /var/www/html
             sudo rm -rf *
-            sudo git clone https://${{ secrets.PAT }}@github.com/noarezaifontys/pipelineman6.git .
+            sudo git clone https://${{ secrets.PAT }}@github.com/noarezaifontys/pipelineman6.git
+            sudo mv /var/www/html/pipelineman6/* /var/www/html/
+            sudo rm -rf ./pipelineman6/
             sudo ufw allow 80
             sudo ufw allow 443
       - name: Test the production server
