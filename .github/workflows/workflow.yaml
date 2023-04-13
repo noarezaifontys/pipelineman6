@@ -56,3 +56,14 @@ jobs:
             echo "Error: Production server returned status code $response"
             exit 1
           fi
+
+      - name: Zet de dev server op pauze
+        if: success()
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.VM1_HOST }}
+          username: ${{ secrets.VM1_USERNAME }}
+          key: ${{ secrets.VM1_KEY }}
+          script: |
+            sudo ufw deny 80
+            sudo ufw deny 443
