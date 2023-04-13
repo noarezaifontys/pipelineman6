@@ -1,58 +1,141 @@
-name: Deploy The Test website To Production
+name: CI/CD pipeline deployment Development --> Production
 
+# Welke branch gedeployed moet worden.
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
+  # Laatste ubuntu versie
   deploy-test:
     runs-on: ubuntu-latest
-    environment: test
+    environment: Development
+
     steps:
-      - name: Checkout the code
+      # De code wordt gecheckt voor fouten.
+      - name: Checkout code
         uses: actions/checkout@v2
-      - name: Deploy to the code to the test server
+
+      # Server 1 (test_server) wordt in maintenance mode gezet door de firewall dicht te zetten
+      - name: Put server 1 in maintenance mode (test_server)
         uses: appleboy/ssh-action@v0.1.8
         with:
-          host: ${{ secrets.VM1_HOST }}
-          username: ${{ secrets.VM1_USERNAME }}
+          # In Github secrets heb ik de credentials en secret keys toegevoegd.
+          host: ${{ secrets.VM1_HOST  }}
+          username: ${{ secrets.VM1_USERNAME  }}
           key: ${{ secrets.VM1_KEY }}
+          # Firewall dichtzetten.
           script: |
             sudo ufw deny 80
             sudo ufw deny 443
+            sudo ufw status
+
+      # Webservice naar (test_server) deployen.
+      - name: Deploy to server 1 (test_server)
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.VM1_HOST  }}
+          username: ${{ secrets.VM1_USERNAME  }}
+          key: ${{ secrets.VM1_KEY }}
+          # Huide html pagina verwijderen en nieuwe geupdate versie toevoegen.
+          script: |
+            echo ${{secrets.PAT}}
             cd /var/www/html
             sudo rm -rf *
-            sudo git clone https://${{ secrets.PAT }}@github.com/noarezaifontys/pipelineman6.git .
+            sudo git clone https://${{secrets.PAT}}@github.com/noarezaifontys/pipelineman6.git
+            sudo mv /var/www/html/pipelineman6/* /var/www/html/
+            sudo rm -rf ./pipelineman6/
+
+      # Server open zetten in de firewall.
+      - name: Take server 1 (test_server) out of maintenance mode
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.VM1_HOST  }}
+          username: ${{ secrets.VM1_USERNAME  }}
+          key: ${{ secrets.VM1_KEY }}
+          script: |
             sudo ufw allow 80
             sudo ufw allow 443
-      - name: Test the testing server
+            sudo ufw status
+
+      # Testen of de server online en bereikbaar is.
+      - name: Test server 1 (test_server)
         run: |
-          response=$(curl -I ${{ secrets.VM1_HOST }} | head -n 1 | cut -d$' ' -f2)
+          response=$(curl -I ${{ secrets.VM1_HOST  }} | head -n 1 | cut -d$' ' -f2)
           if [[ $response -ne 200 ]]; then
-            echo "Error: Test server returned status code $response"
+            echo "Error: Server 1 returned status code $response"
             exit 1
           fi
-      - name: Deploy to the code to the production server
-        if: success()
+
+  # Naar productie server deployen.
+  deploy-productie:
+    runs-on: ubuntu-latest
+    environment: productie
+    needs: [deploy-test]
+
+    # Voordat deze stap begint wordt er om een manual-approval gevraagd.
+    steps:
+      - uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{secrets.PAT}}
+          # Ik moet de approval geven.
+          approvers: LucasCode812
+
+      # Als de approval is gegeveen wordt server 2 in in maintenance mode gezet.
+      - name: Put server 2 in maintenance mode (production_server)
         uses: appleboy/ssh-action@v0.1.8
         with:
           host: ${{ secrets.VM2_HOST }}
-          username: ${{ secrets.VM2_USERNAME }}
+          username: ${{ secrets.VM2_USERNAME  }}
           key: ${{ secrets.VM2_KEY }}
           script: |
             sudo ufw deny 80
             sudo ufw deny 443
+            sudo ufw status
+
+      # Naar productie omgeving pushen.
+      - name: Deploy to server 2 (production_server)
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.VM2_HOST }}
+          username: ${{ secrets.VM2_USERNAME  }}
+          key: ${{ secrets.VM2_KEY }}
+          script: |
             cd /var/www/html
             sudo rm -rf *
-            sudo git clone https://${{ secrets.PAT }}@github.com/noarezaifontys/pipelineman6.git .
+            sudo git clone https://${{secrets.PAT}}@github.com/noarezaifontys/pipelineman6.git
+            sudo mv /var/www/html/pipelineman6/* /var/www/html/
+            sudo rm -rf ./pipelineman6/
+
+      # Server 2 online zetten.
+      - name: Put server 2 out maintenance mode (production_server)
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.VM2_HOST }}
+          username: ${{ secrets.VM2_USERNAME  }}
+          key: ${{ secrets.VM2_KEY }}
+          script: |
             sudo ufw allow 80
             sudo ufw allow 443
-      - name: Test the production server
-        if: success()
+            sudo ufw status
+
+      # Testen of de server online en bereikbaar is.
+      - name: Test server 2 (production_server)
         run: |
           response=$(curl -I ${{ secrets.VM2_HOST }} | head -n 1 | cut -d$' ' -f2)
           if [[ $response -ne 200 ]]; then
-            echo "Error: Production server returned status code $response"
+            echo "Error: Server 2 returned status code $response"
             exit 1
           fi
+
+      # Development server offline halen.
+      - name: Put server 1 in paused mode (test_server)
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.VM1_HOST }}
+          username: ${{ secrets.VM1_USERNAME  }}
+          key: ${{ secrets.VM1_KEY }}
+          script: |
+            sudo ufw deny 80
+            sudo ufw deny 443
+            sudo ufw status
