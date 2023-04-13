@@ -1,0 +1,58 @@
+name: Deploy The Test website To Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-test:
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v2
+      - name: Deploy to the code to the test server
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.VM1_HOST }}
+          username: ${{ secrets.VM1_USERNAME }}
+          key: ${{ secrets.VM1_KEY }}
+          script: |
+            sudo ufw deny 80
+            sudo ufw deny 443
+            cd /var/www/html
+            sudo rm -rf *
+            sudo git clone https://${{ secrets.PAT }}@github.com/noarezaifontys/pipelineman6.git .
+            sudo ufw allow 80
+            sudo ufw allow 443
+      - name: Test the testing server
+        run: |
+          response=$(curl -I ${{ secrets.VM1_HOST }} | head -n 1 | cut -d$' ' -f2)
+          if [[ $response -ne 200 ]]; then
+            echo "Error: Test server returned status code $response"
+            exit 1
+          fi
+      - name: Deploy to the code to the production server
+        if: success()
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.VM2_HOST }}
+          username: ${{ secrets.VM2_USERNAME }}
+          key: ${{ secrets.VM2_KEY }}
+          script: |
+            sudo ufw deny 80
+            sudo ufw deny 443
+            cd /var/www/html
+            sudo rm -rf *
+            sudo git clone https://${{ secrets.PAT }}@github.com/noarezaifontys/pipelineman6.git .
+            sudo ufw allow 80
+            sudo ufw allow 443
+      - name: Test the production server
+        if: success()
+        run: |
+          response=$(curl -I ${{ secrets.VM2_HOST }} | head -n 1 | cut -d$' ' -f2)
+          if [[ $response -ne 200 ]]; then
+            echo "Error: Production server returned status code $response"
+            exit 1
+          fi
