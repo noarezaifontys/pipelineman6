@@ -35,6 +35,13 @@ jobs:
             echo "Error: Test server returned status code $response"
             exit 1
           fi
+
+    steps:
+      - uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{secrets.PAT}}
+          approvers: noarezaifontys
+
       - name: Deploy to the code to the production server
         if: success()
         uses: appleboy/ssh-action@v0.1.8
