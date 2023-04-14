@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: test
     steps:
-      - name: Checkout the code
+      - name: Checkout the code syntax
         uses: actions/checkout@v2
       - name: Deploy to the code to the test server
         uses: appleboy/ssh-action@v0.1.8
